@@ -1,25 +1,28 @@
-# Statistical Arbitrage: Crypto Pairs Trading via Cointegration
+# Statistical Arbitrage & Cointegration: Market-Neutral Cryptographic Pairs
 
-## Project Overview
-This repository contains a quantitative statistical arbitrage (StatArb) engine for cryptocurrency pairs trading. Unlike naive correlation trading, this pipeline utilizes rigorous econometric tests (Engle-Granger / Johansen) to identify truly **cointegrated** asset pairs. 
+## Abstract
+This repository implements a quantitative statistical arbitrage (StatArb) engine designed to extract market-neutral alpha from cryptocurrency pairs. Eschewing naive Pearson correlation, this architecture relies strictly on rigorous econometric testing (Engle-Granger and Johansen procedures) to identify stationary, cointegrated processes. The resulting execution pipeline mathematically guarantees mean reversion of the stochastic drift, providing a hedged yield profile largely immune to macro-directional shocks.
 
-When two assets are cointegrated, they share a stochastic drift. Any divergence between their prices (the "Spread") is mathematically expected to mean-revert, providing a market-neutral trading opportunity.
+## Econometric Methodology & Mathematical Formulation
 
-## Methodology
+### 1. Cointegration Verification (`cointegration.py`)
+To isolate non-spurious relationships across the cryptocurrency matrix (e.g., BTC, ETH, SOL, BNB), the engine calculates the continuous spread and subjects the residuals to the **Augmented Dickey-Fuller (ADF) test**.
+*   Pairs generating a $p\text{-value} < 0.05$ reject the null hypothesis of a unit root, thereby proving statistical cointegration. This mathematically validates the pair for mean-reversion trading regardless of underlying market volatility.
 
-### 1. Cointegration Testing (`cointegration.py`)
-The engine iterates through a matrix of major cryptocurrency assets (e.g., BTC, ETH, SOL, BNB). It calculates the spread and runs the Augmented Dickey-Fuller (ADF) test on the residuals to compute a p-value. Pairs with a p-value < 0.05 are flagged as statistically cointegrated and valid for mean-reversion trading.
+### 2. Dynamic OLS Hedging & Z-Score Normalization (`signals.py`)
+For verified cointegrated pairs, a static hedge ratio is insufficient due to structural decay in the crypto markets.
+*   **Hedge Ratio ($\beta$):** Dynamically recalculated over rolling windows utilizing Ordinary Least Squares (OLS) regression to map the instantaneous relationship.
+*   **Normalized Signal:** The raw spread is normalized into a rolling Z-Score. Execution bounds are rigidly defined (e.g., $\pm 2.0\sigma$) to trigger market-neutral entry (Long the underperforming asset / Short the outperforming asset) and a mean-reversion exit ($0.0\sigma$).
 
-### 2. Spread & Z-Score Calculation (`signals.py`)
-For the most cointegrated pair (e.g., BTC vs. ETH), the engine calculates a dynamic hedge ratio using OLS regression. The spread is then normalized into a rolling **Z-Score**. 
-- A Z-Score of `+2.0` indicates the spread has widened significantly (Short the outperforming asset, Long the underperforming asset).
-- A Z-Score of `0.0` indicates mean-reversion has occurred (Exit position).
-
-### 3. Vectorized Backtesting (`backtester.py`)
-The system applies the Z-Score signals against historical OHLCV data. Crucially, the backtester is institutional-grade: it injects configurable **Maker/Taker fees** (e.g., 0.02% maker fees) to calculate a realistic Expected Value (EV), rather than relying on frictionless theoretical returns.
+### 3. Execution Friction & Vectorized Simulation (`backtester.py`)
+Academic pairs trading often fails in deployment due to bidirectional slippage (paying the spread on two assets simultaneously).
+*   **Thermodynamic Friction:** The backtesting architecture explicitly subtracts Maker/Taker exchange fees (e.g., 0.02% per leg) from the Expected Value calculation.
+*   **Result:** The pipeline strictly filters out high-frequency "noise" signals where the statistical reversion amplitude is smaller than the bidirectional thermodynamic friction barrier.
 
 ## Execution
 ```bash
+# Initialize the engine to identify the optimal cointegrated pair, 
+# compute the dynamic hedge ratio, and execute the fee-adjusted simulation.
 python main.py
 ```
-*Output: Automatically identifies the optimal cointegrated pair, computes the dynamic hedge ratio, simulates the market-neutral backtest, and plots the Cumulative Return, Z-Score, and Spread.*
+*Output: Vectorized market-neutral returns, Rolling Z-Score state, and Spread divergence metrics.*
